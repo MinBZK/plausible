@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dpl
+  labels:
+    app.kubernetes.io/name: plausible-analytics
+    app.kubernetes.io/instance: plausible
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: plausible-analytics
+      app.kubernetes.io/instance: plausible
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: plausible-analytics
+        app.kubernetes.io/instance: plausible
+    spec:
+      securityContext:
+        {}
+      volumes:
+        - name: scripts-volume
+          configMap:
+            name: plausible-plausible-analytics
+      initContainers:
+        - name: wait-for-postgres
+          image: "postgres:13.3-alpine"
+          command: ['sh', '/scripts/wait-for-postgres.sh']
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: DATABASE_URL
+                  name: plausible-plausible-analytics
+          volumeMounts:
+            - name: scripts-volume
+              mountPath: /scripts
+        - name: wait-for-clickhouse
+          image: "bitnami/clickhouse:23.3.9"
+          command: ['sh', '/scripts/wait-for-clickhouse.sh']
+          env:
+            - name: CLICKHOUSE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: CLICKHOUSE_DATABASE_URL
+                  name: plausible-plausible-analytics
+          volumeMounts:
+            - name: scripts-volume
+              mountPath: /scripts
+      containers:
+        - name: plausible-analytics
+          securityContext:
+            {}
+          image: "ghcr.io/plausible/community-edition:v2.1.4"
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -x
+            - -c
+            - /entrypoint.sh db createdb && /entrypoint.sh db migrate && /entrypoint.sh run
+          volumeMounts:
+          env:
+            - name: BASE_URL
+              value: "https://plausible.la-suite.apps.digilab.network"
+            - name: SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  key: SECRET_KEY_BASE
+                  name: plausible-plausible-analytics
+            - name: TOTP_VAULT_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: TOTP_VAULT_KEY
+                  name: plausible-plausible-analytics
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: DATABASE_URL
+                  name: plausible-plausible-analytics
+            - name: CLICKHOUSE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: CLICKHOUSE_DATABASE_URL
+                  name: plausible-plausible-analytics
+            - name: SMTP_HOST_ADDR
+              value: "plausible-mailcatcher-svc"
+            - name: SMTP_HOST_PORT
+              value: "1025"
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 30
+          resources:
+            {}
