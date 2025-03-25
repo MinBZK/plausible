@@ -102,4 +102,6 @@ spec:
               port: http
             initialDelaySeconds: 30
           resources:
-            {}
+            requests:
+              cpu: 30m
+              memory: 512Mi

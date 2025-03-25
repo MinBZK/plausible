@@ -89,8 +89,9 @@ spec:
                   key: admin-password
           envFrom:
           resources:
-            limits: {}
-            requests: {}
+            requests:
+              cpu: 150m
+              memory: 4Gi
           ports:
             - name: http
               containerPort: 8123
